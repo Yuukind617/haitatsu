@@ -1,0 +1,10 @@
+{
+  "name": "はいたつごっこ",
+  "short_name": "はいたつ",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#fff3e0",
+  "theme_color": "#fff3e0",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}

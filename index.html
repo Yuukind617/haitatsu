@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <!-- 指でつまんで拡大されないようにする -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>はいたつごっこ</title>
+  <!-- iPadの「ホーム画面に追加」で、全画面のアプリのように開くための指定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="はいたつ">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ① ちゅうもん画面(おうちの人が品物をえらぶ) -->
+  <section id="screen-order" class="screen active">
+    <header class="topbar">
+      <div class="title"><span id="title-truck" class="title-truck"></span>ちゅうもん</div>
+      <div class="sub">おうちの ひとが えらんでね</div>
+    </header>
+    <div id="item-grid" class="item-grid"></div>
+    <div class="order-bar">
+      <button id="btn-clear" class="btn gray">ぜんぶ けす</button>
+      <button id="btn-random" class="btn blue">おまかせ</button>
+      <div id="order-summary" class="order-summary"></div>
+      <button id="btn-order" class="btn big orange">ちゅうもんする</button>
+    </div>
+    <div id="voice-credit" class="voice-credit"></div>   <!-- VOICEVOX のクレジット -->
+  </section>
+
+  <!-- ② レシート画面(ちゅうもんしょ が上から出てくる) -->
+  <section id="screen-receipt" class="screen">
+    <div class="receipt-col">
+      <div class="printer"><div class="printer-slot"></div></div>
+      <!-- ちゅうもんしょ が長いときは、ここが上下にうごく -->
+      <div id="receipt-area" class="receipt-area">
+        <div id="receipt" class="receipt"></div>
+      </div>
+    </div>
+    <div class="side-col">
+      <button id="btn-read" class="btn-read"><span id="read-icon" class="read-icon"></span><span>よむ</span></button>
+      <button id="btn-collected" class="btn big green">あつめたよ！</button>
+      <button id="btn-back" class="btn small gray">ちゅうもんに もどる</button>
+    </div>
+  </section>
+
+  <!-- ③ トラックの画面 -->
+  <section id="screen-truck" class="screen">
+    <div id="truck-msg" class="truck-msg"></div>
+    <div class="scene">
+      <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+      <div id="house" class="house hidden"></div>
+      <div id="truck" class="truck"></div>
+      <div class="road"></div>
+    </div>
+    <div id="truck-buttons" class="truck-buttons hidden">
+      <button id="btn-received" class="btn big green">うけとりました</button>
+      <button id="btn-wrong" class="btn big red">まちがってます</button>
+    </div>
+  </section>
+
+  <!-- ④ はいたつ かんりょう の画面 -->
+  <section id="screen-done" class="screen">
+    <div id="confetti" class="confetti"></div>
+    <div class="done-title">はいたつ かんりょう<br>しました！</div>
+    <div id="done-truck" class="done-truck"></div>
+    <div id="done-count" class="done-count"></div>
+    <button id="btn-next" class="btn big orange">つぎの ちゅうもん</button>
+  </section>
+
+  <!-- たて向きのときに出す案内 -->
+  <div id="rotate" class="rotate">iPadを よこむきに してね</div>
+
+  <!-- 読み込む順番が大事:設定 → こえ → 絵 → 本体 -->
+  <script src="config.js"></script>
+  <script src="voice.js"></script>
+  <script src="items.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
