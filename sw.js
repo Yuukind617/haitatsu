@@ -11,7 +11,7 @@
 //    「haitatsu-」で始まるものだけを使い、ほかのアプリの保存場所はさわらない
 // ============================================================
 const PREFIX = 'haitatsu-';
-const CACHE = PREFIX + 'v2';
+const CACHE = PREFIX + 'v5';
 // 保存しておくファイルの一覧
 const FILES = ['./', 'index.html', 'style.css', 'config.js', 'voice.js', 'items.js', 'app.js', 'icon.png', 'manifest.json'];
 

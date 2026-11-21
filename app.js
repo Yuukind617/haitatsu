@@ -2,7 +2,8 @@
 // はいたつごっこ  ―  画面を動かすプログラム
 //
 // 【流れ】
-//   ① ちゅうもん  … おうちの人が品物をタッチしてえらび(数は いつも1つ)、「ちゅうもんする」
+//   ① ちゅうもん  … 「きょうの おかいどく」(ランダムな品物が○%オフ)を読み上げる
+//                    おうちの人が品物をタッチしてえらび(数は いつも1つ)、「ちゅうもんする」
 //   ② レシート    … ちゅうもんしょ が上から出てくる。タッチすると読み上げ
 //                    子どもが おもちゃを あつめて「あつめたよ!」
 //   ③ トラック    … トラックが しゅっぱつ → おうちに とうちゃく
@@ -22,6 +23,11 @@ const COUNT_KEY = 'haitatsu_count';   // きょう何回はいたつしたか
 let order = {};            // ちゅうもん中の品物 { 'ninjin': 1, 'tamago': 1, ... }(えらんだものが 1)
 let orderNo = 1;           // ちゅうもん ばんごう
 let receiptLines = [];     // レシートの行 [{ item, n, el }]
+let page = 0;              // ちゅうもん画面の いまのページ(0から)
+const PER_PAGE = 15;       // 1ページの品物の数(よこ5 × たて3)
+let sale = null;           // きょうの おかいどく { id:品物, off:何%オフ }
+let booting = true;        // アプリを開いている とちゅう(まだ画面をタッチしていない)
+let saleAnnouncePending = false;   // まだ画面をタッチしていなくて、おかいどくを言えていない
 let flow = 0;              // 画面の流れの番号(とちゅうで別の画面にしたら、古い動きを止めるため)
 
 // よく使う小道具 ---------------------------------------------
@@ -53,7 +59,7 @@ function orderList() {
 
 // とちゅうの状態を保存する(アプリを開き直しても続きから)
 function saveState(stage) {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ order, orderNo, stage })); } catch (e) { }
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ order, orderNo, stage, sale })); } catch (e) { }
 }
 
 // ============================================================
@@ -111,7 +117,7 @@ function buildOrderGrid() {
     card.className = 'item-card';
     card.dataset.id = it.id;
     card.innerHTML = `<div class="pic">${svgWrap(it.svg)}</div><div class="name">${it.name}</div>` +
-                     `<div class="badge">✓</div>`;
+                     `<div class="badge">✓</div><div class="sale-tag"></div>`;
     // カードをタッチ → えらぶ / もう一度タッチ → やめる
     card.addEventListener('click', () => {
       if (order[it.id]) {
@@ -127,23 +133,101 @@ function buildOrderGrid() {
   });
 }
 
+// ページの数
+function pageCount() {
+  return Math.max(1, Math.ceil(shownItems().length / PER_PAGE));
+}
+
+// ページを切りかえる(p:ページ番号 0から)
+function setPage(p) {
+  page = Math.min(Math.max(0, p), pageCount() - 1);
+  updateOrderView();
+}
+
+// ページの切りかえボタンと、いまのページの品物だけを出す
+function updatePager() {
+  const pages = pageCount();
+  $('pager').classList.toggle('hidden', pages <= 1);
+  $('pg-prev').disabled = page === 0;
+  $('pg-next').disabled = page === pages - 1;
+  const ids = shownItems().map(it => it.id);
+  // 品物カードは、いまのページのものだけ見せる
+  document.querySelectorAll('.item-card').forEach(card => {
+    const i = ids.indexOf(card.dataset.id);
+    card.classList.toggle('off-page', Math.floor(i / PER_PAGE) !== page);
+  });
+  // ページの丸(1・2…)。えらんだ品物があるページには ✓ を出す
+  let html = '';
+  for (let p = 0; p < pages; p++) {
+    const has = ids.slice(p * PER_PAGE, (p + 1) * PER_PAGE).some(id => order[id]);
+    html += `<button class="pg-dot${p === page ? ' now' : ''}" data-p="${p}">${p + 1}${has ? '<span class="pg-check">✓</span>' : ''}</button>`;
+  }
+  $('pg-dots').innerHTML = html;
+}
+
 // カードの数と、下のまとめを今の状態に合わせる
 function updateOrderView() {
+  updatePager();
   document.querySelectorAll('.item-card').forEach(card => {
     card.classList.toggle('picked', !!order[card.dataset.id]);
+    // おかいどくの品物には「○%オフ」の札をつける
+    const isSale = !!sale && sale.id === card.dataset.id;
+    card.classList.toggle('sale', isSale);
+    card.querySelector('.sale-tag').textContent = isSale ? `${sale.off}%オフ` : '';
   });
+  // 上の文字:おかいどくがあれば、それを出す(タッチすると、もう一度読む)
+  const saleItem = sale && ITEM_BY_ID[sale.id];
+  $('sale-info').innerHTML = saleItem
+    ? `<span class="sale-mark">おかいどく</span>${saleItem.name} <b>${sale.off}%オフ</b>`
+    : 'おうちの ひとが えらんでね';
   const list = orderList();
-  $('order-summary').textContent = list.length ? `${list.length}こ えらんだよ` : 'しなものを タッチしてね';
+  $('order-summary').textContent = list.length ? `${list.length}こ えらんだよ` : 'えらんでね';
   $('btn-order').disabled = list.length === 0;
   $('btn-order').classList.toggle('bounce', list.length > 0);
   saveState('order');
 }
 
+// ============================================================
+// きょうの おかいどく
+//   あたらしい ちゅうもん画面になるたびに、品物を1つランダムにえらび、
+//   10〜90%オフ(10%きざみ)にして読み上げる
+// ============================================================
+// おかいどくの品物と、何%オフかを決める
+function pickSale() {
+  const s = CONFIG.sale || {};
+  if (s.enabled === false) { sale = null; return; }
+  const items = shownItems();
+  const min = Math.max(1, Math.round((s.min || 10) / 10)), max = Math.min(9, Math.round((s.max || 90) / 10));
+  sale = { id: items[rand(0, items.length - 1)].id, off: rand(min, max) * 10 };
+}
+
+// 「きょうの おかいどくは、ころっけ! 30パーセント オフ! おかいどくだよ!」と読む
+//   (3つに分けて読むと、VOICEVOX の声を品物の名前で使いまわせる)
+function announceSale() {
+  const item = sale && ITEM_BY_ID[sale.id];
+  if (!item) return;
+  saleAnnouncePending = false;
+  const card = document.querySelector(`.item-card[data-id="${sale.id}"]`);
+  say([{ text: 'きょうの おかいどくは、' }, { text: item.name, el: card }, { text: `${sale.off}パーセント オフ！ おかいどくだよ！` }]);
+}
+
 function showOrder() {
   flow++;
   hush();
-  showScreen('order');
-  updateOrderView();
+  const isNew = !Object.keys(order).length;   // あたらしい ちゅうもんか
+  if (isNew || !sale || !ITEM_BY_ID[sale.id]) {
+    pickSale();
+    // あたらしい ちゅうもんは、おかいどくの品物があるページから
+    const i = shownItems().findIndex(it => sale && it.id === sale.id);
+    page = i >= 0 ? Math.floor(i / PER_PAGE) : 0;
+    showScreen('order');
+    updateOrderView();
+    // 開いた直後は声が出せないので、最初のタッチまで待つ(iPad の決まり)
+    if (booting) saleAnnouncePending = true; else announceSale();
+  } else {
+    showScreen('order');
+    updateOrderView();
+  }
 }
 
 // 「おまかせ」:ランダムなちゅうもんを作る
@@ -152,7 +236,13 @@ function randomOrder() {
   const items = shownItems();
   const kinds = Math.min(items.length, rand(r.kinds[0], r.kinds[1]));
   order = {};
-  shuffle(items).slice(0, kinds).forEach(it => { order[it.id] = 1; });
+  let picks = shuffle(items);
+  // おかいどくの品物は、config.js の sale.random_rate の割合で必ず入れる(初期は 80%)
+  const rate = (CONFIG.sale && CONFIG.sale.random_rate !== undefined) ? CONFIG.sale.random_rate : 0.8;
+  if (sale && ITEM_BY_ID[sale.id] && Math.random() < rate) {
+    picks = [ITEM_BY_ID[sale.id]].concat(picks.filter(it => it.id !== sale.id));
+  }
+  picks.slice(0, kinds).forEach(it => { order[it.id] = 1; });
   sndTap();
   updateOrderView();
 }
@@ -179,7 +269,7 @@ async function showReceipt(animate) {
     line.className = 'r-line';
     line.innerHTML =
       `<div class="r-pic">${svgWrap(item.svg)}</div>` +
-      `<div class="r-name">${item.name}</div>` +
+      `<div class="r-name">${item.name}${sale && sale.id === item.id ? `<span class="r-sale">${sale.off}%オフ</span>` : ''}</div>` +
       `<button class="r-check" aria-label="あつめた">✓</button>`;
     // 行をタッチ → その品物だけ読む
     line.addEventListener('click', () => say([{ text: lineSpeech(item, n), el: line }]));
@@ -326,7 +416,8 @@ function deliveryDone() {
 
   showScreen('done');
   sndDone();
-  sleep(900).then(() => say('はいたつ かんりょう！ ありがとう！'));
+  const myFlow = flow;
+  sleep(900).then(() => { if (myFlow === flow) say('はいたつ かんりょう！ ありがとう！'); });
   orderNo++;
   order = {};
   saveState('order');
@@ -336,7 +427,28 @@ function deliveryDone() {
 // ボタンに「押されたらすること」を結びつける
 // ============================================================
 $('btn-clear').addEventListener('click', () => { order = {}; sndMinus(); updateOrderView(); });
+$('pg-prev').addEventListener('click', () => { sndTap(); setPage(page - 1); });
+$('pg-next').addEventListener('click', () => { sndTap(); setPage(page + 1); });
+$('pg-dots').addEventListener('click', e => {
+  const dot = e.target.closest('.pg-dot');
+  if (dot) { sndTap(); setPage(Number(dot.dataset.p)); }
+});
+// 品物の上を 左右にスワイプしても、ページを切りかえられる
+let swipeX = null;
+$('item-grid').addEventListener('touchstart', e => { swipeX = e.touches[0].clientX; }, { passive: true });
+$('item-grid').addEventListener('touchend', e => {
+  if (swipeX === null) return;
+  const dx = e.changedTouches[0].clientX - swipeX;
+  swipeX = null;
+  if (Math.abs(dx) > window.innerWidth * 0.12) { sndTap(); setPage(page + (dx < 0 ? 1 : -1)); }
+});
 $('btn-random').addEventListener('click', randomOrder);
+$('sale-info').addEventListener('click', () => { if (sale) announceSale(); });
+// iPadは画面を1回タッチするまで声が出ないので、アプリを開いたときのおかいどくは、最初のタッチで言う
+document.addEventListener('pointerup', () => {
+  if (saleAnnouncePending && $('screen-order').classList.contains('active')) setTimeout(announceSale, 300);
+  saleAnnouncePending = false;
+});
 $('btn-order').addEventListener('click', () => { if (orderList().length) showReceipt(true); });
 $('btn-read').addEventListener('click', readAll);
 $('btn-collected').addEventListener('click', () => { sndTap(); departTruck(); });
@@ -365,6 +477,7 @@ try {
   if (saved) {
     order = saved.order || {};
     orderNo = saved.orderNo || 1;
+    sale = saved.sale || null;
     // 品物の一覧にないもの(設定で消したもの)は外す
     Object.keys(order).forEach(id => { if (!ITEM_BY_ID[id] || !(order[id] > 0)) delete order[id]; else order[id] = 1; });
     if (saved.stage !== 'order' && orderList().length) showReceipt(false);
@@ -375,3 +488,6 @@ try {
 } catch (e) {
   showOrder();
 }
+
+// ここまでで、アプリを開く準備はおしまい
+booting = false;

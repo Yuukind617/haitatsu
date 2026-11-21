@@ -21,7 +21,13 @@
   <section id="screen-order" class="screen active">
     <header class="topbar">
       <div class="title"><span id="title-truck" class="title-truck"></span>ちゅうもん</div>
-      <div class="sub">おうちの ひとが えらんでね</div>
+      <!-- ページの切りかえ(品物が多いとき) -->
+      <div id="pager" class="pager hidden">
+        <button id="pg-prev" class="pg-btn" aria-label="まえのページ">◀</button>
+        <div id="pg-dots" class="pg-dots"></div>
+        <button id="pg-next" class="pg-btn" aria-label="つぎのページ">▶</button>
+      </div>
+      <div id="sale-info" class="sub sale-info">おうちの ひとが えらんでね</div>   <!-- きょうの おかいどく -->
     </header>
     <div id="item-grid" class="item-grid"></div>
     <div class="order-bar">
